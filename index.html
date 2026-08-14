@@ -4,11 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ATOS / AR 레벨 찾기</title>
-<!-- html5-qrcode 바코드 스캐너 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-<!-- Tesseract.js OCR 글자 인식 라이브러리 추가 -->
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
 <style>
   :root{
     --ink:#1c2b24;
@@ -70,22 +66,19 @@
     border-radius:10px;
     overflow:hidden;
     border:1px solid var(--line);
-    background: #000;
   }
   .btn-row{
     display:flex;
-    gap:8px;
+    gap:10px;
     margin-top:14px;
     font-family:'Helvetica Neue', Arial, sans-serif;
-    flex-wrap: wrap;
   }
   button{
     flex:1;
-    min-width: 30%;
-    padding:12px 10px;
+    padding:12px 14px;
     border-radius:8px;
     border:none;
-    font-size:13px;
+    font-size:14px;
     font-weight:600;
     cursor:pointer;
     transition:opacity 0.15s;
@@ -93,7 +86,6 @@
   button:active{opacity:0.75;}
   .primary{background:var(--moss); color:white;}
   .secondary{background:var(--moss-light); color:var(--moss);}
-  .accent{background:var(--clay); color:white;}
   .manual{
     display:flex;
     gap:8px;
@@ -123,7 +115,6 @@
   .book-row{
     display:flex;
     gap:14px;
-    margin-bottom: 12px;
   }
   .book-title{
     font-size:17px;
@@ -150,17 +141,17 @@
   .find-btn{
     display:block;
     width:100%;
-    margin-top:8px;
+    margin-top:10px;
     text-align:center;
     text-decoration:none;
-    padding:11px;
+    padding:13px;
     border-radius:8px;
     font-family:'Helvetica Neue', Arial, sans-serif;
     font-weight:600;
-    font-size:13px;
+    font-size:14px;
   }
   .find-btn.arbookfind{background:var(--clay); color:white;}
-  .find-btn.google-site{background:var(--moss-light); color:var(--moss);}
+  .find-btn.lexile{background:#2a4d8f; color:white;}
   .find-btn.google{background:white; color:var(--ink); border:1px solid var(--line);}
   .note{
     font-family:'Helvetica Neue', Arial, sans-serif;
@@ -178,7 +169,6 @@
     text-align:center;
     margin-top:10px;
     min-height:18px;
-    word-break: break-all;
   }
   .disclaimer{
     max-width:420px;
@@ -196,14 +186,13 @@
 <header>
   <div class="eyebrow">Book Level Lookup</div>
   <h1>ATOS / AR 레벨 찾기</h1>
-  <p class="sub">ISBN 바코드 스캔, 책 제목 OCR 촬영 또는 직접 입력하여 AR 레벨을 검색해 보세요.</p>
+  <p class="sub">ISBN이나 책 제목을 입력하면 정확한 책 제목을 찾아, Google에서 "제목 + AR level"로 바로 검색할 수 있는 링크를 만들어줘요.</p>
 </header>
 
 <div class="card">
   <div id="reader"></div>
   <div class="btn-row">
-    <button class="primary" id="startBtn">카메라 시작</button>
-    <button class="accent" id="ocrBtn">제목 텍스트 OCR 인식</button>
+    <button class="primary" id="startBtn">카메라로 스캔 시작</button>
     <button class="secondary" id="stopBtn">중지</button>
   </div>
   <div class="manual">
@@ -222,16 +211,11 @@
       <span class="isbn-tag" id="isbnText">ISBN -</span>
     </div>
   </div>
-  
-  <!-- 바로가기 다중 링크 제공 -->
-  <a href="#" target="_blank" id="arDirectLink" class="find-btn arbookfind">AR BookFinder 바로 검색 →</a>
-  <a href="#" target="_blank" id="arGoogleSiteLink" class="find-btn google-site">Google 'site:arbookfind.com' 검색 →</a>
-  <a href="#" target="_blank" id="googleLink" class="find-btn google">Google 전체 검색 (AR Level) →</a>
-
-  <p class="note">AR BookFinder 세션 문제 발생 시 'site:arbookfind.com' 링크를 사용하시면 구글을 통해 AR 사이트 결과로 바로 이동합니다.</p>
+  <a href="#" target="_blank" id="googleLink" class="find-btn google" style="border:none;background:var(--moss);color:white;">Google에서 "제목 + AR level" 검색 →</a>
+  <p class="note">arbookfind / Lexile은 자동 검색 링크가 불안정해서, 책 제목을 정확히 찾아 Google 검색으로 바로 연결하는 방식으로 바꿨어요. 검색 결과에서 블로그, 리뷰, 학교/도서관 자료 등에 언급된 AR·ATOS 레벨을 확인할 수 있어요.</p>
 </div>
 
-<p class="disclaimer">책 정보는 Google Books API에서 가져오며, 검색 버튼 클릭 시 해당 도서의 AR/ATOS 레벨 검색 결과로 연결됩니다.</p>
+<p class="disclaimer">책 정보는 Google Books API에서 가져오며, 일부 책(특히 국내 출판본)은 정보가 없을 수 있어요. 이 경우에도 입력한 제목/ISBN으로 검색 링크는 그대로 만들어져요.</p>
 
 <script>
 const statusEl = document.getElementById('status');
@@ -259,7 +243,7 @@ async function lookupAny(input){
     const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${q}`);
     const data = await res.json();
     if(!data.items || data.items.length === 0){
-      setStatus('Google Books에서 상세 정보를 찾지 못했어요. 입력된 검색어로 검색 링크를 생성했습니다.');
+      setStatus('Google Books에서 찾지 못했어요. 입력한 내용으로 바로 검색 링크를 만들었어요.');
       showResult({title: input, authors: []}, treatAsISBN ? isbn : '', input);
       return;
     }
@@ -268,7 +252,7 @@ async function lookupAny(input){
     showResult(info, foundIsbn, input);
     setStatus('조회 완료.');
   }catch(err){
-    setStatus('조회 중 네트워크 오류가 발생했어요.');
+    setStatus('조회 중 오류가 발생했어요. 네트워크를 확인해주세요.');
     showResult({title: input, authors: []}, treatAsISBN ? isbn : '', input);
   }
 }
@@ -288,13 +272,7 @@ function showResult(info, isbn, rawInput){
     cover.style.display = 'none';
   }
 
-  // 1. AR BookFinder 직접 세션 연결 링크
-  document.getElementById('arDirectLink').href = `https://www.arbookfind.com/UserType.aspx?redir=${encodeURIComponent('/default.aspx?searchTerm=' + displayTitle)}`;
-  
-  // 2. Google site: 연산자 기반 AR BookFinder 우회 링크 (세션 오류 시 가장 확실)
-  document.getElementById('arGoogleSiteLink').href = `https://www.google.com/search?q=${encodeURIComponent('site:arbookfind.com ' + displayTitle)}`;
-
-  // 3. 구글 일반 AR level 검색 링크
+  // 검색어는 정확한 책 제목 기준
   document.getElementById('googleLink').href = `https://www.google.com/search?q=${encodeURIComponent(displayTitle + ' AR level ATOS')}`;
 
   resultCard.classList.add('show');
@@ -308,6 +286,7 @@ let lastAcceptedAt = 0;
 function handleDecodedCode(decodedText){
   const code = decodedText.trim();
 
+  // 같은 값이 연속으로 2번 읽혀야 인정 (흔들려서 잘못 읽힌 값 걸러내기)
   if(code === pendingCode){
     pendingCount++;
   } else {
@@ -318,7 +297,7 @@ function handleDecodedCode(decodedText){
   if(pendingCount < 2) return;
 
   const now = Date.now();
-  if(code === lastAccepted && now - lastAcceptedAt < 4000) return;
+  if(code === lastAccepted && now - lastAcceptedAt < 4000) return; // 같은 책 중복 조회 방지
 
   lastAccepted = code;
   lastAcceptedAt = now;
@@ -326,102 +305,35 @@ function handleDecodedCode(decodedText){
   lookupAny(code);
 }
 
-// 1. 카메라 시작 및 초점/줌 개선
 document.getElementById('startBtn').addEventListener('click', () => {
   if(isScanning) return;
   html5QrCode = new Html5Qrcode("reader");
-  setStatus('카메라 권한을 확인 중입니다...');
-
-  // 초점이 잘 맞도록 스캔 박스 비율 조절 (20~30cm 거리 유지용)
-  const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
-    let minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
-    let width = Math.floor(minEdgeSize * 0.8);
-    let height = Math.floor(width * 0.45);
-    return { width: width, height: height };
-  };
-
+  setStatus('카메라 권한을 확인해주세요...');
   html5QrCode.start(
     { facingMode: "environment" },
     {
-      fps: 15,
-      qrbox: qrboxFunction,
+      fps: 10,
+      qrbox: { width: 280, height: 140 },
       formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A ],
       experimentalFeatures: { useBarCodeDetectorIfSupported: true }
     },
-    (decodedText) => handleDecodedCode(decodedText),
+    (decodedText) => {
+      handleDecodedCode(decodedText);
+    },
     () => {}
   ).then(() => {
     isScanning = true;
-    setStatus('바코드를 20~30cm 떨어진 거리에서 스캔 영역에 맞춰주세요.');
-
-    // 초점(Continuous Focus) 및 디지털 줌(Zoom) 강제 적용 시도
-    setTimeout(() => {
-      try {
-        const track = html5QrCode.getRunningTrack();
-        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
-        let constraints = {};
-
-        if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
-          constraints.focusMode = 'continuous';
-        }
-        // 기본 줌을 약 1.3~1.5배로 올려 접사 초점 문제를 해결
-        if (capabilities.zoom) {
-          constraints.zoom = Math.min(1.4, capabilities.zoom.max || 1);
-        }
-
-        if (Object.keys(constraints).length > 0) {
-          track.applyConstraints({ advanced: [constraints] }).catch(() => {});
-        }
-      } catch (e) {
-        console.log("세부 제어 미지원 기기");
-      }
-    }, 500);
+    setStatus('바코드를 화면 중앙에 맞추고, 책을 카메라에서 10~15cm 정도 떨어뜨려 초점이 맞는지 확인해주세요.');
+    // 근접 촬영 시 초점이 잘 맞도록 연속 포커스 모드 시도 (지원 기기에서만 적용됨)
+    html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
   }).catch(() => {
-    setStatus('카메라를 열 수 없습니다. 권한을 확인해 주세요.');
+    setStatus('카메라를 시작할 수 없어요. 브라우저 권한을 확인하거나 ISBN을 직접 입력해주세요.');
   });
-});
-
-// 2. 제목 OCR 스캔 (카메라 화면을 캡처하여 글자 인식)
-document.getElementById('ocrBtn').addEventListener('click', async () => {
-  const videoEl = document.querySelector('#reader video');
-  if (!videoEl || !isScanning) {
-    setStatus('먼저 [카메라 시작] 버튼을 눌러 카메라를 켜주세요.');
-    return;
-  }
-
-  setStatus('책 제목 글자를 읽는 중입니다... (1~2초 소요)');
-
-  // 캔버스에 현재 프레임 복사
-  const canvas = document.createElement('canvas');
-  canvas.width = videoEl.videoWidth || 640;
-  canvas.height = videoEl.videoHeight || 480;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-
-  try {
-    // 영문 AR 도서 특성을 감안해 eng 우선 인식
-    const worker = await Tesseract.createWorker('eng');
-    const ret = await worker.recognize(canvas);
-    await worker.terminate();
-
-    // 알파벳과 숫자, 공백 위주로 정제
-    const cleanedText = ret.data.text.replace(/[^a-zA-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-
-    if(cleanedText.length > 2) {
-      document.getElementById('manualIsbn').value = cleanedText;
-      setStatus(`인식된 제목: "${cleanedText}"`);
-      lookupAny(cleanedText);
-    } else {
-      setStatus('글자를 또렷하게 인식하지 못했습니다. 책 제목에 가까이 대고 다시 시도해 주세요.');
-    }
-  } catch(err) {
-    setStatus('글자 인식 도중 오류가 발생했습니다.');
-  }
 });
 
 document.getElementById('stopBtn').addEventListener('click', () => {
   if(html5QrCode && isScanning){
-    html5QrCode.stop().then(() => { isScanning = false; setStatus('스캔이 중지되었습니다.'); });
+    html5QrCode.stop().then(() => { isScanning = false; setStatus('스캔을 중지했어요.'); });
   }
 });
 
