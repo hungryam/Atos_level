@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATOS / AR 레벨 찾기</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --ink:#1c2b24;
+    --paper:#f6f4ee;
+    --moss:#3e5c46;
+    --moss-light:#e7ede8;
+    --clay:#b5623a;
+    --line:#d8d3c4;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Georgia', 'Nanum Myeongjo', serif;
+    background:var(--paper);
+    color:var(--ink);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    min-height:100vh;
+    padding:24px 16px 60px;
+  }
+  header{
+    text-align:center;
+    margin-bottom:20px;
+  }
+  .eyebrow{
+    font-family:'Helvetica Neue', Arial, sans-serif;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    font-size:11px;
+    color:var(--moss);
+    margin-bottom:6px;
+  }
+  h1{
+    font-size:26px;
+    margin:0;
+    font-weight:600;
+  }
+  .sub{
+    font-family:'Helvetica Neue', Arial, sans-serif;
+    font-size:13px;
+    color:#5c6b60;
+    margin-top:8px;
+    max-width:340px;
+    line-height:1.5;
+  }
+  .card{
+    width:100%;
+    max-width:420px;
+    background:white;
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:20px;
+    margin-bottom:16px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.04);
+  }
+  #reader{
+    width:100%;
+    border-radius:10px;
+    overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .btn-row{
+    display:flex;
+    gap:10px;
+    margin-top:14px;
+    font-family:'Helvetica Neue', Arial, sans-serif;
+  }
+  button{
+    flex:1;
+    padding:12px 14px;
+    border-radius:8px;
+    border:none;
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+    transition:opacity 0.15s;
+  }
+  button:active{opacity:0.75;}
+  .primary{background:var(--moss); color:white;}
+  .secondary{background:var(--moss-light); color:var(--moss);}
+  .manual{
+    display:flex;
+    gap:8px;
+    margin-top:14px;
+    font-family:'Helvetica Neue', Arial, sans-serif;
+  }
+  .manual input{
+    flex:1;
+    padding:10px 12px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    font-size:14px;
+  }
+  .manual button{flex:none; padding:10px 16px;}
+
+  .result{display:none;}
+  .result.show{display:block;}
+  .book-cover{
+    width:64px;
+    height:96px;
+    object-fit:cover;
+    border-radius:4px;
+    border:1px solid var(--line);
+    flex-shrink:0;
+    background:var(--moss-light);
+  }
+  .book-row{
+    display:flex;
+    gap:14px;
+  }
+  .book-title{
+    font-size:17px;
+    font-weight:600;
+    line-height:1.3;
+    margin:0 0 4px;
+  }
+  .book-author{
+    font-family:'Helvetica Neue', Arial, sans-serif;
+    font-size:13px;
+    color:#5c6b60;
+    margin:0 0 6px;
+  }
+  .isbn-tag{
+    display:inline-block;
+    font-family:'Helvetica Neue', Arial, sans-serif;
+    font-size:11px;
+    letter-spacing:0.03em;
+    color:var(--clay);
+    background:#f7e9e1;
+    padding:3px 8px;
+    border-radius:5px;
+  }
+  .find-btn{
+    display:block;
+    width:100%;
+    margin-top:16px;
+    background:var(--clay);
+    color:white;
+    text-align:center;
+    text-decoration:none;
+    padding:13px;
+    border-radius:8px;
+    font-family:'Helvetica Neue', Arial, sans-serif;
+    font-weight:600;
+    font-size:14px;
+  }
+  .note{
+    font-family:'Helvetica Neue', Arial, sans-serif;
+    font-size:12px;
+    color:#8a8378;
+    margin-top:10px;
+    line-height:1.5;
+    padding-top:10px;
+    border-top:1px dashed var(--line);
+  }
+  .status{
+    font-family:'Helvetica Neue', Arial, sans-serif;
+    font-size:13px;
+    color:#8a8378;
+    text-align:center;
+    margin-top:10px;
+    min-height:18px;
+  }
+  .disclaimer{
+    max-width:420px;
+    font-family:'Helvetica Neue', Arial, sans-serif;
+    font-size:11.5px;
+    color:#8a8378;
+    line-height:1.5;
+    text-align:center;
+    margin-top:8px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Book Level Lookup</div>
+  <h1>ATOS / AR 레벨 찾기</h1>
+  <p class="sub">ISBN 바코드를 스캔하면 책 정보를 자동으로 조회하고, arbookfind.com에서 ATOS 레벨을 바로 확인할 수 있는 링크를 만들어줘요.</p>
+</header>
+
+<div class="card">
+  <div id="reader"></div>
+  <div class="btn-row">
+    <button class="primary" id="startBtn">카메라로 스캔 시작</button>
+    <button class="secondary" id="stopBtn">중지</button>
+  </div>
+  <div class="manual">
+    <input type="text" id="manualIsbn" placeholder="또는 ISBN 직접 입력 (예: 9780545010221)" inputmode="numeric">
+    <button class="primary" id="manualBtn">조회</button>
+  </div>
+  <div class="status" id="status"></div>
+</div>
+
+<div class="card result" id="resultCard">
+  <div class="book-row">
+    <img id="cover" class="book-cover" src="" alt="표지">
+    <div>
+      <p class="book-title" id="titleText">-</p>
+      <p class="book-author" id="authorText">-</p>
+      <span class="isbn-tag" id="isbnText">ISBN -</span>
+    </div>
+  </div>
+  <a href="#" target="_blank" id="findLink" class="find-btn">arbookfind.com에서 ATOS 레벨 확인 →</a>
+  <p class="note">arbookfind.com은 공식 API를 제공하지 않아, ATOS/AR 점수를 자동으로 이 화면에 표시할 수는 없어요. 위 버튼을 누르면 이 책이 검색된 결과 페이지가 새 탭에서 열려요.</p>
+</div>
+
+<p class="disclaimer">책 정보는 Google Books API에서 가져오며, 일부 책(특히 국내 출판본)은 정보가 없을 수 있어요. 이 경우 제목으로 직접 arbookfind.com에서 검색해보세요.</p>
+
+<script>
+const statusEl = document.getElementById('status');
+const resultCard = document.getElementById('resultCard');
+let html5QrCode;
+let isScanning = false;
+
+function setStatus(msg){ statusEl.textContent = msg; }
+
+async function lookupISBN(isbn){
+  isbn = isbn.replace(/[^0-9Xx]/g, '');
+  if(!isbn){ setStatus('올바른 ISBN이 아니에요.'); return; }
+  setStatus('책 정보를 조회하는 중...');
+  try{
+    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+    const data = await res.json();
+    if(!data.items || data.items.length === 0){
+      setStatus('Google Books에서 이 ISBN을 찾지 못했어요. 아래에서 직접 검색해보세요.');
+      showResult({title: `ISBN ${isbn}`, authors: [], thumbnail: ''}, isbn);
+      return;
+    }
+    const info = data.items[0].volumeInfo;
+    showResult(info, isbn);
+    setStatus('조회 완료.');
+  }catch(err){
+    setStatus('조회 중 오류가 발생했어요. 네트워크를 확인해주세요.');
+  }
+}
+
+function showResult(info, isbn){
+  document.getElementById('titleText').textContent = info.title || `ISBN ${isbn}`;
+  document.getElementById('authorText').textContent = (info.authors && info.authors.length) ? info.authors.join(', ') : '저자 정보 없음';
+  document.getElementById('isbnText').textContent = 'ISBN ' + isbn;
+  const cover = document.getElementById('cover');
+  if(info.imageLinks && info.imageLinks.thumbnail){
+    cover.src = info.imageLinks.thumbnail;
+    cover.style.display = 'block';
+  } else {
+    cover.style.display = 'none';
+  }
+  const query = encodeURIComponent(info.title ? info.title : isbn);
+  document.getElementById('findLink').href = `https://www.arbookfind.com/UserType.aspx?ReturnUrl=%2fdefault.aspx`;
+  // arbookfind requires selecting a user type first; give a direct search fallback via Google in case layout changes
+  document.getElementById('findLink').href = `https://www.arbookfind.com/Home.aspx?keywords=${query}`;
+  resultCard.classList.add('show');
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  if(isScanning) return;
+  html5QrCode = new Html5Qrcode("reader");
+  setStatus('카메라 권한을 확인해주세요...');
+  html5QrCode.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 250, height: 120 }, formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A ] },
+    (decodedText) => {
+      lookupISBN(decodedText);
+    },
+    () => {}
+  ).then(() => {
+    isScanning = true;
+    setStatus('바코드를 화면 중앙에 맞춰주세요.');
+  }).catch(() => {
+    setStatus('카메라를 시작할 수 없어요. 브라우저 권한을 확인하거나 ISBN을 직접 입력해주세요.');
+  });
+});
+
+document.getElementById('stopBtn').addEventListener('click', () => {
+  if(html5QrCode && isScanning){
+    html5QrCode.stop().then(() => { isScanning = false; setStatus('스캔을 중지했어요.'); });
+  }
+});
+
+document.getElementById('manualBtn').addEventListener('click', () => {
+  const val = document.getElementById('manualIsbn').value.trim();
+  if(val) lookupISBN(val);
+});
+document.getElementById('manualIsbn').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ document.getElementById('manualBtn').click(); }
+});
+</script>
+
+</body>
+</html>
