@@ -191,6 +191,7 @@
 
 <div class="card">
   <div id="reader"></div>
+  <video id="nativeVideo" playsinline muted style="width:100%;border-radius:10px;border:1px solid var(--line);display:none;"></video>
   <div class="btn-row">
     <button class="primary" id="startBtn">카메라로 스캔 시작</button>
     <button class="secondary" id="stopBtn">중지</button>
@@ -285,10 +286,79 @@ function showResult(info, isbn, rawInput){
   resultCard.classList.add('show');
 }
 
-document.getElementById('startBtn').addEventListener('click', () => {
+let usingNative = false;
+let nativeStream = null;
+let nativeDetector = null;
+let nativeLoopId = null;
+let lastDecoded = '';
+let lastDecodedAt = 0;
+
+async function startNativeScan(){
+  if(!('BarcodeDetector' in window)){
+    return false; // not supported, caller should fall back
+  }
+  try{
+    const formats = await BarcodeDetector.getSupportedFormats();
+    const wanted = ['ean_13','ean_8','upc_a'].filter(f => formats.includes(f));
+    nativeDetector = new BarcodeDetector({ formats: wanted.length ? wanted : formats });
+
+    nativeStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, focusMode: "continuous" }
+    });
+
+    const video = document.getElementById('nativeVideo');
+    video.srcObject = nativeStream;
+    video.style.display = 'block';
+    document.getElementById('reader').style.display = 'none';
+    await video.play();
+
+    usingNative = true;
+    isScanning = true;
+    setStatus('바코드를 화면 중앙에 맞춰주세요. (고성능 모드)');
+
+    const scanFrame = async () => {
+      if(!usingNative) return;
+      try{
+        const barcodes = await nativeDetector.detect(video);
+        if(barcodes.length > 0){
+          const value = barcodes[0].rawValue;
+          const now = Date.now();
+          if(value !== lastDecoded || now - lastDecodedAt > 3000){
+            lastDecoded = value;
+            lastDecodedAt = now;
+            lookupAny(value);
+          }
+        }
+      }catch(e){ /* ignore transient detect errors */ }
+      nativeLoopId = requestAnimationFrame(scanFrame);
+    };
+    scanFrame();
+    return true;
+  }catch(err){
+    return false;
+  }
+}
+
+function stopNativeScan(){
+  usingNative = false;
+  isScanning = false;
+  if(nativeLoopId) cancelAnimationFrame(nativeLoopId);
+  if(nativeStream){ nativeStream.getTracks().forEach(t => t.stop()); }
+  const video = document.getElementById('nativeVideo');
+  video.style.display = 'none';
+  video.srcObject = null;
+  document.getElementById('reader').style.display = 'block';
+}
+
+document.getElementById('startBtn').addEventListener('click', async () => {
   if(isScanning) return;
-  html5QrCode = new Html5Qrcode("reader");
   setStatus('카메라 권한을 확인해주세요...');
+
+  const nativeOk = await startNativeScan();
+  if(nativeOk) return;
+
+  // Fallback: JS 기반 스캐너
+  html5QrCode = new Html5Qrcode("reader");
   html5QrCode.start(
     { facingMode: "environment" },
     { fps: 10, qrbox: { width: 250, height: 120 }, formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A ] },
@@ -305,6 +375,11 @@ document.getElementById('startBtn').addEventListener('click', () => {
 });
 
 document.getElementById('stopBtn').addEventListener('click', () => {
+  if(usingNative){
+    stopNativeScan();
+    setStatus('스캔을 중지했어요.');
+    return;
+  }
   if(html5QrCode && isScanning){
     html5QrCode.stop().then(() => { isScanning = false; setStatus('스캔을 중지했어요.'); });
   }
