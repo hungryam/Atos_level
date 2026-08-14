@@ -141,9 +141,7 @@
   .find-btn{
     display:block;
     width:100%;
-    margin-top:16px;
-    background:var(--clay);
-    color:white;
+    margin-top:10px;
     text-align:center;
     text-decoration:none;
     padding:13px;
@@ -152,6 +150,9 @@
     font-weight:600;
     font-size:14px;
   }
+  .find-btn.arbookfind{background:var(--clay); color:white;}
+  .find-btn.lexile{background:#2a4d8f; color:white;}
+  .find-btn.google{background:white; color:var(--ink); border:1px solid var(--line);}
   .note{
     font-family:'Helvetica Neue', Arial, sans-serif;
     font-size:12px;
@@ -185,7 +186,7 @@
 <header>
   <div class="eyebrow">Book Level Lookup</div>
   <h1>ATOS / AR 레벨 찾기</h1>
-  <p class="sub">ISBN 바코드를 스캔하면 책 정보를 자동으로 조회하고, arbookfind.com에서 ATOS 레벨을 바로 확인할 수 있는 링크를 만들어줘요.</p>
+  <p class="sub">책 제목이나 ISBN을 입력하면 책 정보를 조회하고, arbookfind(ATOS), Lexile, Google에서 바로 검색할 수 있는 링크를 만들어줘요. 바코드 스캔이 잘 안 되면 표지에 적힌 제목이나 ISBN 숫자를 직접 입력해주세요.</p>
 </header>
 
 <div class="card">
@@ -195,7 +196,7 @@
     <button class="secondary" id="stopBtn">중지</button>
   </div>
   <div class="manual">
-    <input type="text" id="manualIsbn" placeholder="또는 ISBN 직접 입력 (예: 9780545010221)" inputmode="numeric">
+    <input type="text" id="manualIsbn" placeholder="책 제목 또는 ISBN 입력">
     <button class="primary" id="manualBtn">조회</button>
   </div>
   <div class="status" id="status"></div>
@@ -210,11 +211,13 @@
       <span class="isbn-tag" id="isbnText">ISBN -</span>
     </div>
   </div>
-  <a href="#" target="_blank" id="findLink" class="find-btn">arbookfind.com에서 ATOS 레벨 확인 →</a>
-  <p class="note">arbookfind.com은 공식 API를 제공하지 않아, ATOS/AR 점수를 자동으로 이 화면에 표시할 수는 없어요. 위 버튼을 누르면 이 책이 검색된 결과 페이지가 새 탭에서 열려요.</p>
+  <a href="#" target="_blank" id="findLink" class="find-btn arbookfind">arbookfind.com에서 ATOS 레벨 확인 →</a>
+  <a href="#" target="_blank" id="lexileLink" class="find-btn lexile">Lexile.com에서 검색 →</a>
+  <a href="#" target="_blank" id="googleLink" class="find-btn google">Google에서 "제목 + AR/ATOS level" 검색 →</a>
+  <p class="note">위 사이트들은 공식 API를 제공하지 않아, 점수를 이 화면에 자동으로 표시할 수는 없어요. 버튼을 누르면 각 사이트의 검색 결과 페이지가 새 탭에서 열려요.</p>
 </div>
 
-<p class="disclaimer">책 정보는 Google Books API에서 가져오며, 일부 책(특히 국내 출판본)은 정보가 없을 수 있어요. 이 경우 제목으로 직접 arbookfind.com에서 검색해보세요.</p>
+<p class="disclaimer">책 정보는 Google Books API에서 가져오며, 일부 책(특히 국내 출판본)은 정보가 없을 수 있어요. 이 경우에도 입력한 제목/ISBN으로 검색 링크는 그대로 만들어져요.</p>
 
 <script>
 const statusEl = document.getElementById('status');
@@ -224,30 +227,45 @@ let isScanning = false;
 
 function setStatus(msg){ statusEl.textContent = msg; }
 
-async function lookupISBN(isbn){
-  isbn = isbn.replace(/[^0-9Xx]/g, '');
-  if(!isbn){ setStatus('올바른 ISBN이 아니에요.'); return; }
+function isLikelyISBN(text){
+  const digits = text.replace(/[^0-9Xx]/g, '');
+  return digits.length >= 9 && digits.length >= text.replace(/[\s-]/g, '').length - 1;
+}
+
+async function lookupAny(input){
+  input = input.trim();
+  if(!input){ setStatus('제목이나 ISBN을 입력해주세요.'); return; }
+
+  const treatAsISBN = isLikelyISBN(input);
+  const isbn = treatAsISBN ? input.replace(/[^0-9Xx]/g, '') : '';
   setStatus('책 정보를 조회하는 중...');
+
   try{
-    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+    const q = treatAsISBN ? `isbn:${isbn}` : encodeURIComponent(input);
+    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${q}`);
     const data = await res.json();
     if(!data.items || data.items.length === 0){
-      setStatus('Google Books에서 이 ISBN을 찾지 못했어요. 아래에서 직접 검색해보세요.');
-      showResult({title: `ISBN ${isbn}`, authors: [], thumbnail: ''}, isbn);
+      setStatus('Google Books에서 찾지 못했어요. 입력한 내용으로 바로 검색 링크를 만들었어요.');
+      showResult({title: input, authors: []}, treatAsISBN ? isbn : '', input);
       return;
     }
     const info = data.items[0].volumeInfo;
-    showResult(info, isbn);
+    const foundIsbn = treatAsISBN ? isbn : ((info.industryIdentifiers && info.industryIdentifiers[0]) ? info.industryIdentifiers[0].identifier : '');
+    showResult(info, foundIsbn, input);
     setStatus('조회 완료.');
   }catch(err){
     setStatus('조회 중 오류가 발생했어요. 네트워크를 확인해주세요.');
+    showResult({title: input, authors: []}, treatAsISBN ? isbn : '', input);
   }
 }
 
-function showResult(info, isbn){
-  document.getElementById('titleText').textContent = info.title || `ISBN ${isbn}`;
+function showResult(info, isbn, rawInput){
+  const displayTitle = info.title || rawInput;
+  document.getElementById('titleText').textContent = displayTitle;
   document.getElementById('authorText').textContent = (info.authors && info.authors.length) ? info.authors.join(', ') : '저자 정보 없음';
-  document.getElementById('isbnText').textContent = 'ISBN ' + isbn;
+  document.getElementById('isbnText').textContent = isbn ? ('ISBN ' + isbn) : '제목으로 검색됨';
+  document.getElementById('isbnText').style.display = isbn ? 'inline-block' : 'none';
+
   const cover = document.getElementById('cover');
   if(info.imageLinks && info.imageLinks.thumbnail){
     cover.src = info.imageLinks.thumbnail;
@@ -255,10 +273,15 @@ function showResult(info, isbn){
   } else {
     cover.style.display = 'none';
   }
-  const query = encodeURIComponent(info.title ? info.title : isbn);
-  document.getElementById('findLink').href = `https://www.arbookfind.com/UserType.aspx?ReturnUrl=%2fdefault.aspx`;
-  // arbookfind requires selecting a user type first; give a direct search fallback via Google in case layout changes
-  document.getElementById('findLink').href = `https://www.arbookfind.com/Home.aspx?keywords=${query}`;
+
+  // 검색어는 ISBN이 있으면 ISBN, 없으면 제목으로
+  const searchTerm = isbn || displayTitle;
+  const q = encodeURIComponent(searchTerm);
+
+  document.getElementById('findLink').href = `https://www.arbookfind.com/Home.aspx?keywords=${q}`;
+  document.getElementById('lexileLink').href = `https://hub.lexile.com/find-a-book/search?keyword=${q}`;
+  document.getElementById('googleLink').href = `https://www.google.com/search?q=${encodeURIComponent(displayTitle + ' AR ATOS book level')}`;
+
   resultCard.classList.add('show');
 }
 
@@ -270,7 +293,7 @@ document.getElementById('startBtn').addEventListener('click', () => {
     { facingMode: "environment" },
     { fps: 10, qrbox: { width: 250, height: 120 }, formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A ] },
     (decodedText) => {
-      lookupISBN(decodedText);
+      lookupAny(decodedText);
     },
     () => {}
   ).then(() => {
@@ -289,7 +312,7 @@ document.getElementById('stopBtn').addEventListener('click', () => {
 
 document.getElementById('manualBtn').addEventListener('click', () => {
   const val = document.getElementById('manualIsbn').value.trim();
-  if(val) lookupISBN(val);
+  if(val) lookupAny(val);
 });
 document.getElementById('manualIsbn').addEventListener('keydown', (e) => {
   if(e.key === 'Enter'){ document.getElementById('manualBtn').click(); }
