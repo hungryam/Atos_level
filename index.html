@@ -186,7 +186,7 @@
 <header>
   <div class="eyebrow">Book Level Lookup</div>
   <h1>ATOS / AR 레벨 찾기</h1>
-  <p class="sub">책 제목이나 ISBN을 입력하면 책 정보를 조회하고, arbookfind(ATOS), Lexile, Google에서 바로 검색할 수 있는 링크를 만들어줘요. 바코드 스캔이 잘 안 되면 표지에 적힌 제목이나 ISBN 숫자를 직접 입력해주세요.</p>
+  <p class="sub">ISBN이나 책 제목을 입력하면 정확한 책 제목을 찾아, Google에서 "제목 + AR level"로 바로 검색할 수 있는 링크를 만들어줘요.</p>
 </header>
 
 <div class="card">
@@ -212,10 +212,8 @@
       <span class="isbn-tag" id="isbnText">ISBN -</span>
     </div>
   </div>
-  <a href="#" target="_blank" id="findLink" class="find-btn arbookfind">arbookfind.com에서 ATOS 레벨 확인 →</a>
-  <a href="#" target="_blank" id="lexileLink" class="find-btn lexile">Lexile.com에서 검색 →</a>
-  <a href="#" target="_blank" id="googleLink" class="find-btn google">Google에서 "제목 + AR/ATOS level" 검색 →</a>
-  <p class="note">위 사이트들은 공식 API를 제공하지 않아, 점수를 이 화면에 자동으로 표시할 수는 없어요. 버튼을 누르면 각 사이트의 검색 결과 페이지가 새 탭에서 열려요.</p>
+  <a href="#" target="_blank" id="googleLink" class="find-btn google" style="border:none;background:var(--moss);color:white;">Google에서 "제목 + AR level" 검색 →</a>
+  <p class="note">arbookfind / Lexile은 자동 검색 링크가 불안정해서, 책 제목을 정확히 찾아 Google 검색으로 바로 연결하는 방식으로 바꿨어요. 검색 결과에서 블로그, 리뷰, 학교/도서관 자료 등에 언급된 AR·ATOS 레벨을 확인할 수 있어요.</p>
 </div>
 
 <p class="disclaimer">책 정보는 Google Books API에서 가져오며, 일부 책(특히 국내 출판본)은 정보가 없을 수 있어요. 이 경우에도 입력한 제목/ISBN으로 검색 링크는 그대로 만들어져요.</p>
@@ -275,13 +273,8 @@ function showResult(info, isbn, rawInput){
     cover.style.display = 'none';
   }
 
-  // 검색어는 ISBN이 있으면 ISBN, 없으면 제목으로
-  const searchTerm = isbn || displayTitle;
-  const q = encodeURIComponent(searchTerm);
-
-  document.getElementById('findLink').href = `https://www.arbookfind.com/Home.aspx?keywords=${q}`;
-  document.getElementById('lexileLink').href = `https://hub.lexile.com/find-a-book/search?keyword=${q}`;
-  document.getElementById('googleLink').href = `https://www.google.com/search?q=${encodeURIComponent(displayTitle + ' AR ATOS book level')}`;
+  // 검색어는 정확한 책 제목 기준
+  document.getElementById('googleLink').href = `https://www.google.com/search?q=${encodeURIComponent(displayTitle + ' AR level ATOS')}`;
 
   resultCard.classList.add('show');
 }
