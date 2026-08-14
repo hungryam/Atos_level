@@ -191,7 +191,6 @@
 
 <div class="card">
   <div id="reader"></div>
-  <video id="nativeVideo" playsinline muted style="width:100%;border-radius:10px;border:1px solid var(--line);display:none;"></video>
   <div class="btn-row">
     <button class="primary" id="startBtn">카메라로 스캔 시작</button>
     <button class="secondary" id="stopBtn">중지</button>
@@ -279,100 +278,60 @@ function showResult(info, isbn, rawInput){
   resultCard.classList.add('show');
 }
 
-let usingNative = false;
-let nativeStream = null;
-let nativeDetector = null;
-let nativeLoopId = null;
-let lastDecoded = '';
-let lastDecodedAt = 0;
+let pendingCode = '';
+let pendingCount = 0;
+let lastAccepted = '';
+let lastAcceptedAt = 0;
 
-async function startNativeScan(){
-  if(!('BarcodeDetector' in window)){
-    return false; // not supported, caller should fall back
+function handleDecodedCode(decodedText){
+  const code = decodedText.trim();
+
+  // 같은 값이 연속으로 2번 읽혀야 인정 (흔들려서 잘못 읽힌 값 걸러내기)
+  if(code === pendingCode){
+    pendingCount++;
+  } else {
+    pendingCode = code;
+    pendingCount = 1;
   }
-  try{
-    const formats = await BarcodeDetector.getSupportedFormats();
-    const wanted = ['ean_13','ean_8','upc_a'].filter(f => formats.includes(f));
-    nativeDetector = new BarcodeDetector({ formats: wanted.length ? wanted : formats });
 
-    nativeStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, focusMode: "continuous" }
-    });
+  if(pendingCount < 2) return;
 
-    const video = document.getElementById('nativeVideo');
-    video.srcObject = nativeStream;
-    video.style.display = 'block';
-    document.getElementById('reader').style.display = 'none';
-    await video.play();
+  const now = Date.now();
+  if(code === lastAccepted && now - lastAcceptedAt < 4000) return; // 같은 책 중복 조회 방지
 
-    usingNative = true;
-    isScanning = true;
-    setStatus('바코드를 화면 중앙에 맞춰주세요. (고성능 모드)');
-
-    const scanFrame = async () => {
-      if(!usingNative) return;
-      try{
-        const barcodes = await nativeDetector.detect(video);
-        if(barcodes.length > 0){
-          const value = barcodes[0].rawValue;
-          const now = Date.now();
-          if(value !== lastDecoded || now - lastDecodedAt > 3000){
-            lastDecoded = value;
-            lastDecodedAt = now;
-            lookupAny(value);
-          }
-        }
-      }catch(e){ /* ignore transient detect errors */ }
-      nativeLoopId = requestAnimationFrame(scanFrame);
-    };
-    scanFrame();
-    return true;
-  }catch(err){
-    return false;
-  }
+  lastAccepted = code;
+  lastAcceptedAt = now;
+  pendingCount = 0;
+  lookupAny(code);
 }
 
-function stopNativeScan(){
-  usingNative = false;
-  isScanning = false;
-  if(nativeLoopId) cancelAnimationFrame(nativeLoopId);
-  if(nativeStream){ nativeStream.getTracks().forEach(t => t.stop()); }
-  const video = document.getElementById('nativeVideo');
-  video.style.display = 'none';
-  video.srcObject = null;
-  document.getElementById('reader').style.display = 'block';
-}
-
-document.getElementById('startBtn').addEventListener('click', async () => {
+document.getElementById('startBtn').addEventListener('click', () => {
   if(isScanning) return;
-  setStatus('카메라 권한을 확인해주세요...');
-
-  const nativeOk = await startNativeScan();
-  if(nativeOk) return;
-
-  // Fallback: JS 기반 스캐너
   html5QrCode = new Html5Qrcode("reader");
+  setStatus('카메라 권한을 확인해주세요...');
   html5QrCode.start(
     { facingMode: "environment" },
-    { fps: 10, qrbox: { width: 250, height: 120 }, formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A ] },
+    {
+      fps: 10,
+      qrbox: { width: 280, height: 140 },
+      formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A ],
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+    },
     (decodedText) => {
-      lookupAny(decodedText);
+      handleDecodedCode(decodedText);
     },
     () => {}
   ).then(() => {
     isScanning = true;
-    setStatus('바코드를 화면 중앙에 맞춰주세요.');
+    setStatus('바코드를 화면 중앙에 맞추고, 책을 카메라에서 10~15cm 정도 떨어뜨려 초점이 맞는지 확인해주세요.');
+    // 근접 촬영 시 초점이 잘 맞도록 연속 포커스 모드 시도 (지원 기기에서만 적용됨)
+    html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
   }).catch(() => {
     setStatus('카메라를 시작할 수 없어요. 브라우저 권한을 확인하거나 ISBN을 직접 입력해주세요.');
   });
 });
 
 document.getElementById('stopBtn').addEventListener('click', () => {
-  if(usingNative){
-    stopNativeScan();
-    setStatus('스캔을 중지했어요.');
-    return;
-  }
   if(html5QrCode && isScanning){
     html5QrCode.stop().then(() => { isScanning = false; setStatus('스캔을 중지했어요.'); });
   }
